@@ -1,20 +1,36 @@
 """
-
+This module contains functions for calculating the oriented bounding box of a geometry.
 """
 
 import numpy as np
-from shapely.geometry import Polygon, MultiPolygon
+from shapely.geometry import Polygon, MultiPolygon, LineString, MultiLineString, Point, MultiPoint
 
 
-def oriented_bounding_box(pts):
-    '''
-    Returns the oriented bounding box of a polygon
-    Based on https://stackoverflow.com/questions/32892932/create-the-oriented-bounding-box-obb-with-python-and-numpy
+def geom_to_array(geom: Polygon or MultiPolygon or LineString or MultiLineString or Point or MultiPoint) -> np.ndarray:
+    """
+    Prepares the geometry for the oriented bounding box calculation.
+
+    Parameters
+    ----------
+    geom : any shapely geometry type
+    """
+    if isinstance(geom, Polygon) or isinstance(geom, MultiPolygon):
+        x = np.array(geom.exterior.coords)
+    else:
+        x = np.array(geom.coords)
+    return np.unique(x, axis=0)
+
+
+def oriented_bounding_box(pts: np.ndarray) -> np.ndarray:
+    """
+    Returns the oriented bounding box a set of points.
+
+    Based on [Create the Oriented Bounding-box (OBB) with Python and NumPy](https://stackoverflow.com/questions/32892932/create-the-oriented-bounding-box-obb-with-python-and-numpy).
 
     Parameters
     ----------
     pts : array_like
-    '''
+    """
     ca = np.cov(pts, y=None, rowvar=False, bias=True)
 
     v, vect = np.linalg.eig(ca)
