@@ -4,7 +4,7 @@ with open('requirements.txt') as f:
     requirements = f.read().splitlines()
 
 setup(
-    name='geooob',
+    name='geoobb',
     version='0.1',
     description='Utility for calculating the oriented bounding boxes of shapely features.',
     author='Raphael Laude',
