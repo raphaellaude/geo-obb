@@ -1,6 +1,6 @@
 import geopandas as gpd
 from shapely.geometry import Polygon, LineString
-from geooob.oob import geom_to_array, oriented_bounding_box
+from geoobb.obb import geom_to_array, oriented_bounding_box
 from numpy.testing import assert_array_almost_equal
 from pandas import Series
 

@@ -1,1 +1,1 @@
-from geooob import *
+from geoobb.obb import *
