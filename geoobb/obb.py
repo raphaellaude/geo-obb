@@ -1,29 +1,30 @@
 """
-This module contains functions for calculating the oriented bounding box of a geometry.
+This module contains functions for calculating the oriented bounding box of width geometry.
 """
 
 import numpy as np
-from shapely.geometry import Polygon, MultiPolygon, LineString, MultiLineString, Point, MultiPoint
+from shapely.geometry.base import BaseGeometry
+from shapely.geometry import Point, Polygon, MultiPolygon, GeometryCollection
 
 
-def geom_to_array(geom: Polygon or MultiPolygon or LineString or MultiLineString or Point or MultiPoint) -> np.ndarray:
+def pca_eigenvectors(pts: np.ndarray) -> np.ndarray:
     """
-    Prepares the geometry for the oriented bounding box calculation.
+    Returns the principal axes of a set of points.
+    Method is essentially running a PCA on the points.
 
     Parameters
     ----------
-    geom : any shapely geometry type
+    pts : array_like
     """
-    if isinstance(geom, Polygon) or isinstance(geom, MultiPolygon):
-        x = np.array(geom.exterior.coords)
-    else:
-        x = np.array(geom.coords)
-    return np.unique(x, axis=0)
+    ca = np.cov(pts, y=None, rowvar=False, bias=True)
+    val, vect = np.linalg.eig(ca)
+
+    return np.transpose(vect)
 
 
 def oriented_bounding_box(pts: np.ndarray) -> np.ndarray:
     """
-    Returns the oriented bounding box a set of points.
+    Returns the oriented bounding box width set of points.
 
     Based on [Create the Oriented Bounding-box (OBB) with Python and NumPy](https://stackoverflow.com/questions/32892932/create-the-oriented-bounding-box-obb-with-python-and-numpy).
 
@@ -31,54 +32,106 @@ def oriented_bounding_box(pts: np.ndarray) -> np.ndarray:
     ----------
     pts : array_like
     """
-    ca = np.cov(pts, y=None, rowvar=False, bias=True)
+    tvect = pca_eigenvectors(pts)
+    rot_matrix = np.linalg.inv(tvect)
 
-    val, vect = np.linalg.eig(ca)
-    tvect = np.transpose(vect)
+    rot_arr = np.dot(pts, rot_matrix)
 
-    #use the inverse of the eigenvectors as a rotation matrix and
-    #rotate the points so they align with the x and y axes
-    arr = np.dot(pts, np.linalg.inv(tvect))
-
-    # get the minimum and maximum x and y
-    mina = np.min(arr, axis=0)
-    maxa = np.max(arr, axis=0)
+    mina = np.min(rot_arr, axis=0)
+    maxa = np.max(rot_arr, axis=0)
     diff = (maxa - mina) * 0.5
 
-    # the center is just half way between the min and max xy
     center = mina + diff
 
-    #get the 4 corners by subtracting and adding half the bounding boxes height and width to the center
-    a, b = diff
+    half_w, half_h = diff
     corners = np.array([
-        center + [-a, -b], center + [a, -b], center + [a, b], center + [-a, b],
-        center + [-a, -b]
+        center + [-half_w, -half_h],
+        center + [half_w, -half_h],
+        center + [half_w, half_h],
+        center + [-half_w, half_h],
     ])
 
-    #use the the eigenvectors as a rotation matrix and
-    #rotate the corners and the centerback
-    corners = np.dot(corners, tvect)
-    center = np.dot(center, tvect)
-
-    return corners
+    return np.dot(corners, tvect)
 
 
-def oriented_bb_center_diff(pts: np.ndarray):
+def oriented_bounding_box_dimensions(pts: np.ndarray) -> np.ndarray:
     """
+    Returns the dimensions of the oriented bounding box width set of points.
+
+    Parameters
+    ----------
+    pts : array_like
     """
-    val, vect = np.linalg.eig(np.cov(pts, y=None, rowvar=False, bias=True))
-    tvect = np.transpose(vect)
+    tvect = pca_eigenvectors(pts)
+    rot_matrix = np.linalg.inv(tvect)
 
-    #use the inverse of the eigenvectors as a rotation matrix and
-    #rotate the points so they align with the x and y axes
-    arr = np.dot(pts, np.linalg.inv(tvect))
+    rot_arr = np.dot(pts, rot_matrix)
 
-    # get the minimum and maximum x and y
-    mina = np.min(arr, axis=0)
-    maxa = np.max(arr, axis=0)
-    diff = (maxa - mina) * 0.5
+    mina = np.min(rot_arr, axis=0)
+    maxa = np.max(rot_arr, axis=0)
 
-    # the center is just half way between the min and max xy
-    center = mina + diff
+    return np.abs(np.dot(maxa - mina, tvect))
 
-    return center, diff
+
+## OBB Utilities
+
+
+def polygon_from_obb(obb: np.ndarray) -> Polygon:
+    """
+    Returns the oriented bounding box width set of points.
+
+    Parameters
+    ----------
+    obb : array_like
+    """
+    obb = np.vstack((obb, obb[0]))
+    return Polygon(obb)
+
+
+def obb_angle(obb: np.ndarray) -> float:
+    """
+    Returns the angle of the oriented bounding box width set of points.
+
+    Parameters
+    ----------
+    obb : array_like
+    """
+    distances = [np.linalg.norm(obb[i] - obb[(i + 1) % 4]) for i in range(4)]
+    long_edge_index = np.argmax(distances)
+    p1, p2 = obb[long_edge_index], obb[(long_edge_index + 1) % 4]
+    long_edge_vector = p2 - p1
+    angle = np.arctan2(long_edge_vector[1], long_edge_vector[0])
+    
+    return angle
+
+
+## Geometry Utilities
+
+
+def geom_to_array(geom: BaseGeometry, omit_last=True) -> np.ndarray:
+    """
+    Prepares the geometry as an array.
+
+    Parameters
+    ----------
+    geom : shapely geometry
+    """
+    n = -1 if omit_last else None
+    if isinstance(geom, Polygon) or isinstance(geom, MultiPolygon):
+        return np.array(geom.exterior.coords[:n])
+    return np.array(geom.coords[:n])
+
+
+def geom_to_unique_array(geom: BaseGeometry) -> np.ndarray:
+    """
+    Prepares the geometry for the oriented bounding box calculation.
+
+    Parameters
+    ----------
+    geom : shapely geometry
+    """
+    if isinstance(geom, Polygon) or isinstance(geom, MultiPolygon):
+        arr = np.array(geom.exterior.coords)
+    else:
+        arr = np.array(geom.coords)
+    return np.unique(arr, axis=0)
