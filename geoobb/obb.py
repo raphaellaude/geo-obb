@@ -117,8 +117,10 @@ def geom_to_array(geom: BaseGeometry, omit_last=True) -> np.ndarray:
     geom : shapely geometry
     """
     n = -1 if omit_last else None
-    if isinstance(geom, Polygon) or isinstance(geom, MultiPolygon):
+    if isinstance(geom, Polygon):
         return np.array(geom.exterior.coords[:n])
+    elif isinstance(geom, MultiPolygon):
+        return np.vstack([np.array(p.exterior.coords[:n]) for p in geom.geoms])
     return np.array(geom.coords[:n])
 
 
@@ -130,8 +132,5 @@ def geom_to_unique_array(geom: BaseGeometry) -> np.ndarray:
     ----------
     geom : shapely geometry
     """
-    if isinstance(geom, Polygon) or isinstance(geom, MultiPolygon):
-        arr = np.array(geom.exterior.coords)
-    else:
-        arr = np.array(geom.coords)
+    arr = geom_to_array(geom)
     return np.unique(arr, axis=0)
