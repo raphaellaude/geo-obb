@@ -3,8 +3,9 @@ This module contains functions for calculating the oriented bounding box of widt
 """
 
 import numpy as np
+from typing import Any
 from shapely.geometry.base import BaseGeometry
-from shapely.geometry import Point, Polygon, MultiPolygon, GeometryCollection
+from shapely.geometry import Polygon, MultiPolygon
 from scipy.spatial import distance
 
 
@@ -18,7 +19,7 @@ def pca_eigenvectors(pts: np.ndarray) -> np.ndarray:
     pts : array_like
     """
     ca = np.cov(pts, y=None, rowvar=False, bias=True)
-    val, vect = np.linalg.eig(ca)
+    _, vect = np.linalg.eig(ca)
 
     return np.transpose(vect)
 
@@ -55,7 +56,10 @@ def oriented_bounding_box(pts: np.ndarray) -> np.ndarray:
     return np.dot(corners, tvect)
 
 
-def oriented_bounding_box_dimensions(pts: np.ndarray) -> np.ndarray:
+## OBB Utilities
+
+
+def obb_dimensions(obb: np.ndarray) -> np.ndarray:
     """
     Returns the dimensions of the oriented bounding box, using euclidian distance.
 
@@ -63,30 +67,8 @@ def oriented_bounding_box_dimensions(pts: np.ndarray) -> np.ndarray:
     ----------
     pts : array_like
     """
-    tvect = pca_eigenvectors(pts)
-    rot_matrix = np.linalg.inv(tvect)
-
-    rot_arr = np.dot(pts, rot_matrix)
-
-    mina = np.min(rot_arr, axis=0)
-    maxa = np.max(rot_arr, axis=0)
-    diff = (maxa - mina) * 0.5
-
-    center = mina + diff
-
-    half_w, half_h = diff
-    corners = np.array([
-        center + [-half_w, -half_h],
-        center + [half_w, -half_h],
-        center + [half_w, half_h]
-    ])
-
-    a, b, c = np.dot(corners, tvect)
-
+    a, b, c, _ = obb
     return np.array([distance.euclidean(a, b), distance.euclidean(b, c)])
-
-
-## OBB Utilities
 
 
 def polygon_from_obb(obb: np.ndarray) -> Polygon:
