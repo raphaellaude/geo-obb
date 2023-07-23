@@ -5,6 +5,7 @@ This module contains functions for calculating the oriented bounding box of widt
 import numpy as np
 from shapely.geometry.base import BaseGeometry
 from shapely.geometry import Point, Polygon, MultiPolygon, GeometryCollection
+from scipy.spatial import distance
 
 
 def pca_eigenvectors(pts: np.ndarray) -> np.ndarray:
@@ -56,7 +57,7 @@ def oriented_bounding_box(pts: np.ndarray) -> np.ndarray:
 
 def oriented_bounding_box_dimensions(pts: np.ndarray) -> np.ndarray:
     """
-    Returns the dimensions of the oriented bounding box width set of points.
+    Returns the dimensions of the oriented bounding box, using euclidian distance.
 
     Parameters
     ----------
@@ -69,8 +70,20 @@ def oriented_bounding_box_dimensions(pts: np.ndarray) -> np.ndarray:
 
     mina = np.min(rot_arr, axis=0)
     maxa = np.max(rot_arr, axis=0)
+    diff = (maxa - mina) * 0.5
 
-    return np.abs(np.dot(maxa - mina, tvect))
+    center = mina + diff
+
+    half_w, half_h = diff
+    corners = np.array([
+        center + [-half_w, -half_h],
+        center + [half_w, -half_h],
+        center + [half_w, half_h]
+    ])
+
+    a, b, c = np.dot(corners, tvect)
+
+    return np.array([distance.euclidean(a, b), distance.euclidean(b, c)])
 
 
 ## OBB Utilities
